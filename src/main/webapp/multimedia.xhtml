@@ -1,0 +1,431 @@
+<ui:composition template="/templates/layout.xhtml"
+                xmlns="http://www.w3.org/1999/xhtml"
+                xmlns:h="http://xmlns.jcp.org/jsf/html"
+                xmlns:f="http://xmlns.jcp.org/jsf/core"
+                xmlns:p="http://primefaces.org/ui"
+                xmlns:ui="http://xmlns.jcp.org/jsf/facelets">
+
+    <ui:define name="head">
+        <script type="text/javascript">
+        //<![CDATA[
+            function validateTitleForm() {
+                var titleName = document.getElementById('frmMultimedia:titleName').value;
+                var titleType = document.getElementById('frmMultimedia:titleType_input').value;
+                var genres = document.querySelectorAll('input[name="frmMultimedia:genres"]:checked');
+                
+                if (!titleName || titleName.trim().length < 2) {
+                    alert('El nombre del título debe tener al menos 2 caracteres');
+                    return false;
+                }
+                
+                if (!titleType) {
+                    alert('Debe seleccionar un tipo de título');
+                    return false;
+                }
+                
+                if (genres.length === 0) {
+                    alert('Debe seleccionar al menos un género');
+                    return false;
+                }
+                
+                return true;
+            }
+            
+            function validateGenreForm() {
+                var genreName = document.getElementById('frmGenre:genreName').value;
+                
+                if (!genreName || genreName.trim().length < 3) {
+                    alert('El nombre del género debe tener al menos 3 caracteres');
+                    return false;
+                }
+                
+                return true;
+            }
+        //]]>
+        </script>
+    </ui:define>
+
+    <ui:define name="content">
+        <h1>Catálogo Multimedia</h1>
+        
+        <h:form id="frmMain">
+            <p:messages id="messages" showDetail="true" closable="true"/>
+            
+            <!-- Toolbar -->
+            <p:toolbar style="margin-bottom: 1rem;">
+                <p:toolbarGroup>
+                    <p:commandButton value="Nuevo Título" 
+                                    icon="pi pi-plus" 
+                                    actionListener="#{multimediaBean.newTitle}"
+                                    update="titleDialog"
+                                    oncomplete="PF('titleDialog').show();"
+                                    styleClass="ui-button-success"/>
+                                    
+                    <p:commandButton value="Gestionar Géneros" 
+                                    icon="pi pi-tags" 
+                                    actionListener="#{multimediaBean.newGenre}"
+                                    update="genreDialog"
+                                    oncomplete="PF('genreDialog').show();"
+                                    styleClass="ui-button-info"
+                                    style="margin-left: 0.5rem;"/>
+                </p:toolbarGroup>
+            </p:toolbar>
+            
+            <!-- Titles DataTable -->
+            <p:dataTable id="titlesTable" 
+                         value="#{multimediaBean.titles}" 
+                         var="title"
+                         paginator="true" 
+                         rows="10"
+                         paginatorTemplate="{CurrentPageReport} {FirstPageLink} {PreviousPageLink} {PageLinks} {NextPageLink} {LastPageLink} {RowsPerPageDropdown}"
+                         rowsPerPageTemplate="5,10,15"
+                         emptyMessage="No hay títulos registrados"
+                         styleClass="ui-datatable-striped">
+            
+            <f:facet name="header">
+                Títulos Multimedia Registrados
+            </f:facet>
+            
+            <p:column headerText="Poster" width="80" style="text-align: center;">
+                <h:panelGroup rendered="#{multimediaBean.getPosterForTitle(title) != null}">
+                    <p:graphicImage value="/multimedia/#{multimediaBean.getPosterForTitle(title).localUrl}" 
+                                   width="60" height="80" 
+                                   alt="#{title.titleName}"
+                                   title="#{title.titleName}"/>
+                </h:panelGroup>
+                <h:panelGroup rendered="#{multimediaBean.getPosterForTitle(title) == null}">
+                    <i class="pi pi-image" style="font-size: 2rem; color: #ccc;"/>
+                </h:panelGroup>
+            </p:column>
+            
+            <p:column headerText="Título" sortBy="#{title.titleName}" filterBy="#{title.titleName}">
+                <h:outputText value="#{title.titleName}"/>
+            </p:column>
+            
+            <p:column headerText="Tipo" sortBy="#{title.titleType}" filterBy="#{title.titleType}">
+                <p:tag value="#{title.titleType == 'MOVIE' ? 'Película' : 'Serie'}" 
+                       severity="#{title.titleType == 'MOVIE' ? 'info' : 'success'}"/>
+            </p:column>
+            
+            <p:column headerText="Año" sortBy="#{title.releaseYear}">
+                <h:outputText value="#{title.releaseYear}"/>
+            </p:column>
+            
+            <p:column headerText="Calificación" sortBy="#{title.averageRating}">
+                <p:rating value="#{title.averageRating != null ? title.averageRating.intValue() : 0}" 
+                         readonly="true" 
+                         stars="10" 
+                         rendered="#{title.averageRating != null}"/>
+                <h:outputText value="Sin calificar" 
+                             style="color: #999;" 
+                             rendered="#{title.averageRating == null}"/>
+            </p:column>
+            
+            <p:column headerText="Géneros">
+                <ui:repeat value="#{title.genres}" var="genre">
+                    <p:tag value="#{genre.genreName}" 
+                           style="margin-right: 0.25rem; margin-bottom: 0.25rem;"/>
+                </ui:repeat>
+            </p:column>
+            
+            <p:column headerText="Archivos" width="100" style="text-align: center;">
+                <p:tag value="P" 
+                       severity="success" 
+                       title="Tiene poster"
+                       rendered="#{multimediaBean.getPosterForTitle(title) != null}"
+                       style="margin-right: 0.25rem;"/>
+                <p:tag value="#{multimediaBean.getTechnicalSheetsForTitle(title).size()}" 
+                       severity="info" 
+                       title="Fichas técnicas"
+                       rendered="#{multimediaBean.getTechnicalSheetsForTitle(title).size() > 0}"/>
+            </p:column>
+            
+            <p:column headerText="Fecha Creación" sortBy="#{title.createdAt}">
+                <h:outputText value="#{title.createdAt}">
+                    <f:convertDateTime pattern="dd/MM/yyyy HH:mm" type="localDateTime"/>
+                </h:outputText>
+            </p:column>
+            
+            <p:column headerText="Acciones" width="120">
+                <p:commandButton icon="pi pi-pencil" 
+                                title="Editar"
+                                actionListener="#{multimediaBean.edit(title)}"
+                                update="titleDialog"
+                                oncomplete="PF('titleDialog').show();"
+                                styleClass="ui-button-warning ui-button-sm"
+                                style="margin-right: 0.25rem;"/>
+                                
+                <p:commandButton icon="pi pi-trash" 
+                                title="Eliminar"
+                                actionListener="#{multimediaBean.delete(title)}"
+                                update="titlesTable frmMain:messages"
+                                styleClass="ui-button-danger ui-button-sm">
+                    <p:confirm header="Confirmar Eliminación" 
+                              message="¿Está seguro de eliminar el título '#{title.titleName}'?"
+                              icon="pi pi-exclamation-triangle"/>
+                </p:commandButton>
+            </p:column>
+        </p:dataTable>
+        </h:form>
+        
+        <!-- Title Dialog -->
+        <p:dialog id="titleDialog" 
+                  widgetVar="titleDialog" 
+                  header="#{multimediaBean.selectedTitle.id == null ? 'Nuevo Título' : 'Editar Título'}"
+                  modal="true" 
+                  width="800" 
+                  height="600"
+                  maximizable="true"
+                  resizable="true"
+                  responsive="true"
+                  styleClass="dialog-nice"
+                  contentStyle="padding: 1rem; overflow-y: auto;"
+                  showHeader="true">
+            
+            <h:form id="frmMultimedia">
+                <p:messages id="msgMultimedia" showDetail="true" closable="true" style="margin-bottom: 1rem;"/>
+                
+                <!-- Información Básica -->
+                <p:fieldset legend="Información Básica" style="margin-bottom: 1rem;">
+                    <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem; align-items: start; margin-bottom: 1rem;">
+                        
+                        <div>
+                            <p:outputLabel for="titleName" value="Nombre del Título:" style="display: block; margin-bottom: 0.5rem; font-weight: bold;"/>
+                            <p:inputText id="titleName" 
+                                        value="#{multimediaBean.selectedTitle.titleName}"
+                                        required="true"
+                                        maxlength="150"
+                                        style="width: 100%;"
+                                        placeholder="Ingrese el nombre del título"/>
+                        </div>
+                        
+                        <div>
+                            <p:outputLabel for="titleType" value="Tipo:" style="display: block; margin-bottom: 0.5rem; font-weight: bold;"/>
+                            <p:selectOneMenu id="titleType" 
+                                            value="#{multimediaBean.selectedTitle.titleType}"
+                                            required="true"
+                                            style="width: 100%;">
+                                <f:selectItem itemLabel="Seleccione..." itemValue="#{null}"/>
+                                <f:selectItems value="#{multimediaBean.titleTypes}" 
+                                              var="type" 
+                                              itemLabel="#{type == 'MOVIE' ? 'Película' : 'Serie'}" 
+                                              itemValue="#{type}"/>
+                            </p:selectOneMenu>
+                        </div>
+                        
+                        <div>
+                            <p:outputLabel for="releaseYear" value="Año de Lanzamiento:" style="display: block; margin-bottom: 0.5rem; font-weight: bold;"/>
+                            <p:inputText id="releaseYear" 
+                                        value="#{multimediaBean.selectedTitle.releaseYear}"
+                                        style="width: 100%;"
+                                        placeholder="Ej: 2023"
+                                        maxlength="4">
+                                <f:validateLongRange minimum="1900" maximum="2100"/>
+                                <f:validator validatorId="futureYearValidator"/>
+                            </p:inputText>
+                        </div>
+                        
+                        <div>
+                            <p:outputLabel for="averageRating" value="Calificación Promedio (0-10):" style="display: block; margin-bottom: 0.5rem; font-weight: bold;"/>
+                            <p:inputNumber id="averageRating" 
+                                          value="#{multimediaBean.selectedTitle.averageRating}"
+                                          decimalPlaces="1"
+                                          minValue="0.0"
+                                          maxValue="10.0"
+                                          style="width: 100%;"
+                                          placeholder="Ej: 8.5"/>
+                        </div>
+                        
+                    </div>
+                    
+                    <div style="margin-top: 1rem;">
+                        <p:outputLabel for="genres" value="Géneros:" style="display: block; margin-bottom: 0.5rem; font-weight: bold;"/>
+                        <p:selectCheckboxMenu id="genres" 
+                                             value="#{multimediaBean.selectedGenres}"
+                                             label="Seleccionar géneros"
+                                             filter="true"
+                                             filterMatchMode="contains"
+                                             panelStyle="width: 400px; max-height: 200px;"
+                                             style="width: 100%;"
+                                             required="true"
+                                             requiredMessage="Debe seleccionar al menos un género">
+                            <f:selectItems value="#{multimediaBean.genres}" 
+                                          var="genre" 
+                                          itemLabel="#{genre.genreName}" 
+                                          itemValue="#{genre}"/>
+                            <f:validator validatorId="genreRequiredValidator"/>
+                        </p:selectCheckboxMenu>
+                    </div>
+                    
+                </p:fieldset>
+                
+                <!-- Sinopsis -->
+                <p:fieldset legend="Sinopsis" style="margin-bottom: 1.5rem;">
+                    <p:inputTextarea id="synopsis" 
+                                    value="#{multimediaBean.selectedTitle.synopsis}"
+                                    rows="3"
+                                    maxlength="1000"
+                                    style="width: 100%;"
+                                    placeholder="Descripción breve del contenido (opcional)"/>
+                </p:fieldset>
+                
+                <!-- Archivos Multimedia -->
+                <p:fieldset legend="Archivos Multimedia (Opcional)" style="margin-bottom: 1.5rem;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                        
+                        <div>
+                            <p:outputLabel value="Poster (JPG/PNG, máx. 2MB):" style="display: block; margin-bottom: 0.5rem; font-weight: bold;"/>
+                            <p:fileUpload id="posterUpload"
+                                         listener="#{multimediaBean.onPosterUpload}"
+                                         mode="advanced"
+                                         auto="false"
+                                         allowTypes="/(\.|\/)(jpe?g|png)$/i"
+                                         sizeLimit="2097152"
+                                         update="msgMultimedia"
+                                         invalidFileMessage="Tipo de archivo inválido. Solo se permiten imágenes JPG y PNG."
+                                         fileLimitMessage="Solo se permite un archivo a la vez."
+                                         invalidSizeMessage="El archivo es demasiado grande. Máximo permitido: 2 MB."
+                                         style="width: 100%;">
+                                <f:attribute name="expectedType" value="poster"/>
+                                <f:validator validatorId="fileTypeValidator"/>
+                            </p:fileUpload>
+                        </div>
+                        
+                        <div>
+                            <p:outputLabel value="Ficha Técnica (PDF, máx. 5MB):" style="display: block; margin-bottom: 0.5rem; font-weight: bold;"/>
+                            <p:fileUpload id="technicalUpload"
+                                         listener="#{multimediaBean.onTechnicalUpload}"
+                                         mode="advanced"
+                                         auto="false"
+                                         allowTypes="/(\.|\/)(pdf)$/i"
+                                         sizeLimit="5242880"
+                                         update="msgMultimedia"
+                                         invalidFileMessage="Tipo de archivo inválido. Solo se permiten archivos PDF."
+                                         fileLimitMessage="Solo se permite un archivo a la vez."
+                                         invalidSizeMessage="El archivo es demasiado grande. Máximo permitido: 5 MB."
+                                         style="width: 100%;">
+                                <f:attribute name="expectedType" value="technical"/>
+                                <f:validator validatorId="fileTypeValidator"/>
+                            </p:fileUpload>
+                        </div>
+                        
+                    </div>
+                </p:fieldset>
+                
+                <!-- Botones de Acción -->
+                <div style="text-align: right; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e0e0e0;">
+                    <p:commandButton value="Cancelar" 
+                                    icon="pi pi-times"
+                                    onclick="PF('titleDialog').hide();"
+                                    type="button"
+                                    styleClass="ui-button-secondary"
+                                    style="margin-right: 0.5rem;"/>
+                                    
+                    <p:commandButton value="Guardar" 
+                                    icon="pi pi-check"
+                                    actionListener="#{multimediaBean.save}"
+                                    update="frmMain:titlesTable frmMain:messages msgMultimedia"
+                                    oncomplete="if (!args.validationFailed) PF('titleDialog').hide();"
+                                    onclick="return validateTitleForm();"
+                                    styleClass="ui-button-success"/>
+                </div>
+            </h:form>
+        </p:dialog>
+        
+        <!-- Genre Management Dialog -->
+        <p:dialog id="genreDialog" 
+                  widgetVar="genreDialog" 
+                  header="Gestión de Géneros"
+                  modal="true" 
+                  width="700" 
+                  height="auto"
+                  maximizable="true"
+                  resizable="true"
+                  responsive="true"
+                  styleClass="dialog-nice"
+                  contentStyle="max-height: 50vh; overflow-y: auto; padding: 1rem;">
+            
+            <h:form id="frmGenre">
+                <p:messages id="msgGenre" showDetail="true" closable="true" style="margin-bottom: 1rem;"/>
+                
+                <!-- New Genre Form -->
+                <p:fieldset legend="Agregar Nuevo Género" style="margin-bottom: 1.5rem;">
+                    <div style="display: flex; gap: 1rem; align-items: end;">
+                        <div style="flex: 1;">
+                            <p:outputLabel for="genreName" value="Nombre del Género:" style="display: block; margin-bottom: 0.5rem; font-weight: bold;"/>
+                            <p:inputText id="genreName" 
+                                        value="#{multimediaBean.selectedGenre.genreName}"
+                                        placeholder="Ej: Acción, Drama, Comedia..."
+                                        maxlength="50"
+                                        style="width: 100%;"/>
+                        </div>
+                        
+                        <div>
+                            <p:commandButton value="Agregar" 
+                                            icon="pi pi-plus"
+                                            actionListener="#{multimediaBean.saveGenre}"
+                                            update="genresTable frmGenre:msgGenre"
+                                            onclick="return validateGenreForm();"
+                                            styleClass="ui-button-success"/>
+                        </div>
+                    </div>
+                </p:fieldset>
+                
+                <!-- Existing Genres Table -->
+                <p:dataTable id="genresTable" 
+                            value="#{multimediaBean.genres}" 
+                            var="genre"
+                            paginator="true" 
+                            rows="5"
+                            paginatorTemplate="{CurrentPageReport} {FirstPageLink} {PreviousPageLink} {PageLinks} {NextPageLink} {LastPageLink}"
+                            emptyMessage="No hay géneros registrados"
+                            style="margin-top: 1rem;"
+                            styleClass="ui-datatable-striped">
+                    
+                    <f:facet name="header">
+                        Géneros Existentes
+                    </f:facet>
+                    
+                    <p:column headerText="Nombre">
+                        <h:outputText value="#{genre.genreName}"/>
+                    </p:column>
+                    
+                    <p:column headerText="Títulos Asociados" width="120" style="text-align: center;">
+                        <p:tag value="#{multimediaBean.getTitleCountForGenre(genre)}" 
+                               severity="info"/>
+                    </p:column>
+                    
+                    <p:column headerText="Acciones" width="100">
+                        <p:commandButton icon="pi pi-trash" 
+                                        title="Eliminar"
+                                        actionListener="#{multimediaBean.deleteGenre(genre)}"
+                                        update="genresTable frmGenre:msgGenre"
+                                        styleClass="ui-button-danger ui-button-sm">
+                            <p:confirm header="Confirmar Eliminación" 
+                                      message="¿Está seguro de eliminar el género '#{genre.genreName}'?"
+                                      icon="pi pi-exclamation-triangle"/>
+                        </p:commandButton>
+                    </p:column>
+                </p:dataTable>
+                
+                <!-- Dialog Footer Button -->
+                <div style="text-align: right; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e0e0e0;">
+                    <p:commandButton value="Cerrar" 
+                                    icon="pi pi-times"
+                                    onclick="PF('genreDialog').hide();"
+                                    type="button"
+                                    styleClass="ui-button-secondary"/>
+                </div>
+            </h:form>
+        </p:dialog>
+        
+        <!-- Confirmation Dialog -->
+        <p:confirmDialog global="true" showEffect="fade" hideEffect="fade">
+            <h:form>
+                <p:commandButton value="Sí" type="button" styleClass="ui-confirmdialog-yes" icon="pi pi-check"/>
+                <p:commandButton value="No" type="button" styleClass="ui-confirmdialog-no ui-button-secondary" icon="pi pi-times"/>
+            </h:form>
+        </p:confirmDialog>
+        
+    </ui:define>
+</ui:composition>

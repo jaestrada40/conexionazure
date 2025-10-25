@@ -1,0 +1,187 @@
+<ui:composition template="/templates/layout.xhtml"
+                xmlns="http://www.w3.org/1999/xhtml"
+                xmlns:h="http://xmlns.jcp.org/jsf/html"
+                xmlns:f="http://xmlns.jcp.org/jsf/core"
+                xmlns:p="http://primefaces.org/ui"
+                xmlns:ui="http://xmlns.jcp.org/jsf/facelets">
+    <h:outputStylesheet>
+
+    </h:outputStylesheet>
+
+    <ui:define name="content">
+        <h1>
+            <i class="pi pi-video" style="margin-right: 0.5rem; color: #2196F3;"></i>
+            Dashboard - Catálogo Multimedia
+        </h1>
+
+        <p:outputPanel layout="block"
+                       style="display:flex; gap:1rem; flex-wrap:wrap; align-items:stretch; margin-bottom:2rem;">
+
+            <p:card style="flex:1 1 320px; margin:0; text-align:center;">
+                <f:facet name="title">
+                    <span style="display:block; font-weight:700;">Total de Títulos</span>
+                </f:facet>
+                <h:panelGroup layout="block">
+                    <h:outputText value="#{dashboardBean.getTotalMultimediaTitles()}"
+                                  style="font-size:3rem; font-weight:700; color: #2196F3;"/>
+                    <br/>
+                    <h:outputText value="Registrados" style="color:gray;"/>
+                </h:panelGroup>
+            </p:card>
+
+            <p:card style="flex:1 1 320px; margin:0; text-align:center;">
+                <f:facet name="title">
+                    <span style="display:block; font-weight:700;">Películas vs Series</span>
+                </f:facet>
+                <h:panelGroup layout="block">
+                    <h:outputText value="#{dashboardBean.getMovieVsSeriesRatio()}" 
+                                  style="font-size:1.5rem; font-weight:700; color: #4CAF50;"/>
+                    <br/>
+                    <h:outputText value="Distribución" style="color:gray;"/>
+                </h:panelGroup>
+            </p:card>
+
+            <p:card style="flex:1 1 320px; margin:0; text-align:center;">
+                <f:facet name="title">
+                    <span style="display:block; font-weight:700;">Géneros Disponibles</span>
+                </f:facet>
+                <h:panelGroup layout="block">
+                    <h:outputText value="#{dashboardBean.getAvailableGenres()}"
+                                  style="font-size:3rem; font-weight:700; color: #FF9800;"/>
+                    <br/>
+                    <h:outputText value="Categorías" style="color:gray;"/>
+                </h:panelGroup>
+            </p:card>
+
+        </p:outputPanel>
+
+        <p:outputPanel layout="block"
+                       style="display:flex; gap:1rem; flex-wrap:wrap; align-items:stretch;">
+
+            <p:card style="flex:1 1 320px; margin:0; text-align:center;">
+                <f:facet name="title">
+                    <span style="display:block; font-weight:700;">Títulos con Poster</span>
+                </f:facet>
+                <h:panelGroup layout="block">
+                    <h:outputText value="#{dashboardBean.getTitlesWithPosters()}"
+                                  style="font-size:3rem; font-weight:700; color: #9C27B0;"/>
+                    <br/>
+                    <h:outputText value="#{dashboardBean.getPosterCoveragePercentage()} cobertura" style="color:gray;"/>
+                </h:panelGroup>
+            </p:card>
+
+            <p:card style="flex:1 1 320px; margin:0; text-align:center;">
+                <f:facet name="title">
+                    <span style="display:block; font-weight:700;">Títulos Recientes</span>
+                </f:facet>
+                <h:panelGroup layout="block">
+                    <h:outputText value="#{dashboardBean.getRecentTitles()}"
+                                  style="font-size:3rem; font-weight:700; color: #00BCD4;"/>
+                    <br/>
+                    <h:outputText value="Último Mes" style="color:gray;"/>
+                </h:panelGroup>
+            </p:card>
+
+            <p:card style="flex:1 1 320px; margin:0; text-align:center;">
+                <f:facet name="title">
+                    <span style="display:block; font-weight:700;">Almacenamiento Usado</span>
+                </f:facet>
+                <h:panelGroup layout="block">
+                    <h:outputText value="#{dashboardBean.getTotalStorageUsed()}"
+                                  style="font-size:2rem; font-weight:700; color: #795548;"/>
+                    <br/>
+                    <h:outputText value="Archivos multimedia" style="color:gray;"/>
+                </h:panelGroup>
+            </p:card>
+
+        </p:outputPanel>
+
+        <!-- Azure Blob Storage Statistics -->
+        <p:card style="margin-top: 2rem;">
+            <f:facet name="title">
+                <span style="display:block; font-weight:700;">
+                    <i class="pi pi-cloud" style="margin-right: 0.5rem; color: #0078D4;"></i>
+                    Estadísticas de Azure Blob Storage
+                </span>
+            </f:facet>
+            
+            <p:outputPanel layout="block"
+                           style="display:flex; gap:1rem; flex-wrap:wrap; align-items:stretch; margin-bottom:1rem;">
+
+                <p:card style="flex:1 1 240px; margin:0; text-align:center; background: #0078D4;">
+                    <f:facet name="title">
+                        <span style="display:block; font-weight:700; color: white;">Total de Archivos</span>
+                    </f:facet>
+                    <h:panelGroup layout="block">
+                        <h:outputText value="#{dashboardBean.getTotalFilesInAzureBlob()}"
+                                      style="font-size:2.5rem; font-weight:700; color: white;"/>
+                        <br/>
+                        <h:outputText value="En Azure Blob" style="color: rgba(255,255,255,0.8);"/>
+                    </h:panelGroup>
+                </p:card>
+
+                <p:card style="flex:1 1 240px; margin:0; text-align:center; background: #107C10;">
+                    <f:facet name="title">
+                        <span style="display:block; font-weight:700; color: white;">Títulos con Poster</span>
+                    </f:facet>
+                    <h:panelGroup layout="block">
+                        <h:outputText value="#{dashboardBean.getTitlesWithPosterInAzureBlob()}"
+                                      style="font-size:2.5rem; font-weight:700; color: white;"/>
+                        <br/>
+                        <h:outputText value="#{dashboardBean.getPosterCoverageInAzureBlobPercentage()} cobertura" 
+                                      style="color: rgba(255,255,255,0.8);"/>
+                    </h:panelGroup>
+                </p:card>
+
+                <p:card style="flex:1 1 240px; margin:0; text-align:center; background: #D13438;">
+                    <f:facet name="title">
+                        <span style="display:block; font-weight:700; color: white;">Almacenamiento</span>
+                    </f:facet>
+                    <h:panelGroup layout="block">
+                        <h:outputText value="#{dashboardBean.getTotalStorageInAzureBlob()}"
+                                      style="font-size:1.8rem; font-weight:700; color: white;"/>
+                        <br/>
+                        <h:outputText value="Usado en Azure" style="color: rgba(255,255,255,0.8);"/>
+                    </h:panelGroup>
+                </p:card>
+
+                <p:card style="flex:1 1 240px; margin:0; text-align:center; background: #8661C5;">
+                    <f:facet name="title">
+                        <span style="display:block; font-weight:700; color: white;">Último Mes</span>
+                    </f:facet>
+                    <h:panelGroup layout="block">
+                        <h:outputText value="#{dashboardBean.getTitlesRegisteredLastMonth()}"
+                                      style="font-size:2.5rem; font-weight:700; color: white;"/>
+                        <br/>
+                        <h:outputText value="Títulos nuevos" style="color: rgba(255,255,255,0.8);"/>
+                    </h:panelGroup>
+                </p:card>
+
+            </p:outputPanel>
+            
+            <!-- Detailed Azure Blob Statistics -->
+            <p:panelGrid columns="2" layout="grid" styleClass="ui-panelgrid-blank" style="margin-top: 1rem;">
+                <h:outputText value="Posters almacenados:" style="font-weight: bold;"/>
+                <h:outputText value="#{dashboardBean.getPostersInAzureBlob()}" style="color: #0078D4;"/>
+                
+                <h:outputText value="Fichas técnicas almacenadas:" style="font-weight: bold;"/>
+                <h:outputText value="#{dashboardBean.getTechnicalSheetsInAzureBlob()}" style="color: #0078D4;"/>
+                
+                <h:outputText value="Resumen de Azure Blob Storage:" style="font-weight: bold;"/>
+                <h:outputText value="#{dashboardBean.getAzureBlobStorageStats()}" style="color: #0078D4;"/>
+            </p:panelGrid>
+        </p:card>
+
+        <!-- Recent Activity -->
+        <p:card style="margin-top: 2rem;">
+            <f:facet name="title">
+                <span style="display:block; font-weight:700;">Actividad Reciente</span>
+            </f:facet>
+            <p:panelGrid columns="2" layout="grid" styleClass="ui-panelgrid-blank">
+                <h:outputText value="Último título agregado:" style="font-weight: bold;"/>
+                <h:outputText value="#{dashboardBean.getMostRecentTitleName()}" style="color: #2196F3;"/>
+            </p:panelGrid>
+        </p:card>
+
+    </ui:define>
+</ui:composition>
