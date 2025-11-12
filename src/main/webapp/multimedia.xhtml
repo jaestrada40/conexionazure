@@ -88,10 +88,11 @@
             
             <p:column headerText="Poster" width="80" style="text-align: center;">
                 <h:panelGroup rendered="#{multimediaBean.getPosterForTitle(title) != null}">
-                    <p:graphicImage value="/multimedia/#{multimediaBean.getPosterForTitle(title).localUrl}" 
+                    <p:graphicImage value="#{multimediaBean.getPosterForTitle(title).blobUrl}" 
                                    width="60" height="80" 
                                    alt="#{title.titleName}"
-                                   title="#{title.titleName}"/>
+                                   title="#{title.titleName}"
+                                   cache="false"/>
                 </h:panelGroup>
                 <h:panelGroup rendered="#{multimediaBean.getPosterForTitle(title) == null}">
                     <i class="pi pi-image" style="font-size: 2rem; color: #ccc;"/>
@@ -182,9 +183,7 @@
                   contentStyle="padding: 1rem; overflow-y: auto;"
                   showHeader="true">
             
-            <h:form id="frmMultimedia">
-                <p:messages id="msgMultimedia" showDetail="true" closable="true" style="margin-bottom: 1rem;"/>
-                
+            <h:form id="frmMultimedia" enctype="multipart/form-data">
                 <!-- Información Básica -->
                 <p:fieldset legend="Información Básica" style="margin-bottom: 1rem;">
                     <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem; align-items: start; margin-bottom: 1rem;">
@@ -270,46 +269,17 @@
                 </p:fieldset>
                 
                 <!-- Archivos Multimedia -->
-                <p:fieldset legend="Archivos Multimedia (Opcional)" style="margin-bottom: 1.5rem;">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
-                        
-                        <div>
-                            <p:outputLabel value="Poster (JPG/PNG, máx. 2MB):" style="display: block; margin-bottom: 0.5rem; font-weight: bold;"/>
-                            <p:fileUpload id="posterUpload"
-                                         listener="#{multimediaBean.onPosterUpload}"
-                                         mode="advanced"
-                                         auto="false"
-                                         allowTypes="/(\.|\/)(jpe?g|png)$/i"
-                                         sizeLimit="2097152"
-                                         update="msgMultimedia"
-                                         invalidFileMessage="Tipo de archivo inválido. Solo se permiten imágenes JPG y PNG."
-                                         fileLimitMessage="Solo se permite un archivo a la vez."
-                                         invalidSizeMessage="El archivo es demasiado grande. Máximo permitido: 2 MB."
-                                         style="width: 100%;">
-                                <f:attribute name="expectedType" value="poster"/>
-                                <f:validator validatorId="fileTypeValidator"/>
-                            </p:fileUpload>
-                        </div>
-                        
-                        <div>
-                            <p:outputLabel value="Ficha Técnica (PDF, máx. 5MB):" style="display: block; margin-bottom: 0.5rem; font-weight: bold;"/>
-                            <p:fileUpload id="technicalUpload"
-                                         listener="#{multimediaBean.onTechnicalUpload}"
-                                         mode="advanced"
-                                         auto="false"
-                                         allowTypes="/(\.|\/)(pdf)$/i"
-                                         sizeLimit="5242880"
-                                         update="msgMultimedia"
-                                         invalidFileMessage="Tipo de archivo inválido. Solo se permiten archivos PDF."
-                                         fileLimitMessage="Solo se permite un archivo a la vez."
-                                         invalidSizeMessage="El archivo es demasiado grande. Máximo permitido: 5 MB."
-                                         style="width: 100%;">
-                                <f:attribute name="expectedType" value="technical"/>
-                                <f:validator validatorId="fileTypeValidator"/>
-                            </p:fileUpload>
-                        </div>
-                        
-                    </div>
+                <p:fieldset legend="Imagen del Título (Opcional)" style="margin-bottom: 1.5rem;">
+                    <p:outputLabel value="Poster (JPG/PNG, máx. 2MB):" style="display: block; margin-bottom: 0.5rem; font-weight: bold;"/>
+                    <h:inputFile id="posterUpload"
+                                value="#{multimediaBean.uploadedPosterFile}"
+                                accept="image/jpeg,image/jpg,image/png"
+                                styleClass="form-control"
+                                style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;">
+                    </h:inputFile>
+                    <small style="color: #666; display: block; margin-top: 0.5rem;">
+                        Selecciona una imagen. Se subirá a Azure cuando hagas clic en "Guardar"
+                    </small>
                 </p:fieldset>
                 
                 <!-- Botones de Acción -->
@@ -323,11 +293,13 @@
                                     
                     <p:commandButton value="Guardar" 
                                     icon="pi pi-check"
-                                    actionListener="#{multimediaBean.save}"
-                                    update="frmMain:titlesTable frmMain:messages msgMultimedia"
+                                    action="#{multimediaBean.save}"
+                                    process="@form"
+                                    update="frmMain:titlesTable frmMain:messages"
                                     oncomplete="if (!args.validationFailed) PF('titleDialog').hide();"
                                     onclick="return validateTitleForm();"
-                                    styleClass="ui-button-success"/>
+                                    styleClass="ui-button-success"
+                                    ajax="true"/>
                 </div>
             </h:form>
         </p:dialog>

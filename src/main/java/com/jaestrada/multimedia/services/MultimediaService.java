@@ -32,11 +32,12 @@ public class MultimediaService {
     
     // ==================== CRUD Operations for MediaTitle ====================
     
-    @Transactional
     public void saveMediaTitle(MediaTitle title) throws MultimediaException {
         validateMediaTitle(title);
         
         try {
+            em.getTransaction().begin();
+            
             if (title.getId() == null) {
                 em.persist(title);
                 LOGGER.info("Nuevo título multimedia creado: " + title.getTitleName());
@@ -44,7 +45,15 @@ public class MultimediaService {
                 em.merge(title);
                 LOGGER.info("Título multimedia actualizado: " + title.getTitleName());
             }
+            
+            em.getTransaction().commit();
+            LOGGER.info("Transacción commitada exitosamente para: " + title.getTitleName());
+            
         } catch (Exception e) {
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
+                LOGGER.warning("Transacción revertida para: " + title.getTitleName());
+            }
             LOGGER.log(Level.SEVERE, "Error al guardar título multimedia: " + title.getTitleName(), e);
             throw new MultimediaException(
                 MultimediaException.Type.STORAGE_ERROR,
@@ -82,9 +91,10 @@ public class MultimediaService {
         }
     }
     
-    @Transactional
     public void deleteMediaTitle(Long id) throws MultimediaException {
         try {
+            em.getTransaction().begin();
+            
             MediaTitle title = findById(id);
             
             // Eliminar archivos asociados de Azure Blob Storage
@@ -97,9 +107,13 @@ public class MultimediaService {
             }
             
             em.remove(title);
+            em.getTransaction().commit();
             LOGGER.info("Título multimedia eliminado: " + title.getTitleName());
             
         } catch (Exception e) {
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
+            }
             LOGGER.log(Level.SEVERE, "Error al eliminar título multimedia con ID: " + id, e);
             throw new MultimediaException(
                 MultimediaException.Type.STORAGE_ERROR,
@@ -119,7 +133,6 @@ public class MultimediaService {
         return query.getResultList();
     }
     
-    @Transactional
     public void saveGenre(MovieGenre genre) throws MultimediaException {
         validateGenre(genre);
         
@@ -132,6 +145,8 @@ public class MultimediaService {
                 );
             }
             
+            em.getTransaction().begin();
+            
             if (genre.getId() == null) {
                 em.persist(genre);
                 LOGGER.info("Nuevo género creado: " + genre.getGenreName());
@@ -139,9 +154,18 @@ public class MultimediaService {
                 em.merge(genre);
                 LOGGER.info("Género actualizado: " + genre.getGenreName());
             }
+            
+            em.getTransaction().commit();
+            
         } catch (MultimediaException e) {
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
+            }
             throw e;
         } catch (Exception e) {
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
+            }
             LOGGER.log(Level.SEVERE, "Error al guardar género: " + genre.getGenreName(), e);
             throw new MultimediaException(
                 MultimediaException.Type.STORAGE_ERROR,
@@ -205,15 +229,16 @@ public class MultimediaService {
     
     // ==================== File Operations ====================
     
-    @Transactional
     public MediaFile uploadFile(MediaTitle title, UploadedFile file, FileType fileType, String uploadedBy) 
             throws MultimediaException {
         
         try {
-            // Si es un poster, eliminar el poster anterior si existe
+            // Si es un poster, eliminar el poster anterior ANTES de subir el nuevo
             if (fileType == FileType.POSTER) {
-                removeExistingPoster(title);
+                removeExistingPosterBeforeUpload(title);
             }
+            
+            em.getTransaction().begin();
             
             // Subir archivo a Azure Blob Storage
             AzureBlobStorageService.BlobUploadResult uploadResult = 
@@ -231,13 +256,23 @@ public class MultimediaService {
             mediaFile.setUploadedBy(uploadedBy);
             
             em.persist(mediaFile);
+            em.getTransaction().commit();
             
-            LOGGER.info("Archivo subido exitosamente a Azure Blob: " + file.getFileName() + " para título: " + title.getTitleName());
+            LOGGER.info("✅ MediaFile guardado en BD con ID: " + mediaFile.getId());
+            LOGGER.info("✅ Archivo subido exitosamente a Azure Blob: " + file.getFileName() + " para título: " + title.getTitleName());
+            LOGGER.info("✅ URL del blob: " + mediaFile.getBlobUrl());
+            LOGGER.info("✅ Blob name: " + mediaFile.getLocalUrl());
             return mediaFile;
             
         } catch (MultimediaException e) {
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
+            }
             throw e;
         } catch (Exception e) {
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
+            }
             LOGGER.log(Level.SEVERE, "Error al subir archivo: " + file.getFileName(), e);
             throw new MultimediaException(
                 MultimediaException.Type.STORAGE_ERROR,
@@ -353,8 +388,10 @@ public class MultimediaService {
         }
     }
     
-    private void removeExistingPoster(MediaTitle title) {
+    private void removeExistingPosterBeforeUpload(MediaTitle title) {
         try {
+            em.getTransaction().begin();
+            
             TypedQuery<MediaFile> query = em.createQuery(
                 "SELECT mf FROM MediaFile mf WHERE mf.mediaTitle = :title AND mf.fileType = :fileType", 
                 MediaFile.class
@@ -363,16 +400,29 @@ public class MultimediaService {
             query.setParameter("fileType", FileType.POSTER);
             
             List<MediaFile> existingPosters = query.getResultList();
+            LOGGER.info("🗑️ Encontrados " + existingPosters.size() + " posters anteriores para eliminar");
+            
             for (MediaFile poster : existingPosters) {
                 try {
+                    // Eliminar de Azure primero
                     fileStorageService.deleteFile(poster.getLocalUrl());
+                    LOGGER.info("🗑️ Eliminado de Azure: " + poster.getLocalUrl());
                 } catch (MultimediaException e) {
-                    LOGGER.warning("No se pudo eliminar poster anterior: " + poster.getLocalUrl());
+                    LOGGER.warning("No se pudo eliminar poster de Azure: " + poster.getLocalUrl());
                 }
+                // Eliminar de BD
                 em.remove(poster);
+                LOGGER.info("🗑️ Eliminado de BD: ID " + poster.getId());
             }
+            
+            em.getTransaction().commit();
+            LOGGER.info("✅ Posters anteriores eliminados correctamente");
+            
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Error al eliminar poster anterior", e);
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
+            }
+            LOGGER.log(Level.WARNING, "Error al eliminar posters anteriores", e);
         }
     }
     
@@ -381,13 +431,17 @@ public class MultimediaService {
     public MediaFile getPosterForTitle(Long titleId) {
         try {
             TypedQuery<MediaFile> query = em.createQuery(
-                "SELECT mf FROM MediaFile mf WHERE mf.mediaTitle.id = :titleId AND mf.fileType = :fileType", 
+                "SELECT mf FROM MediaFile mf WHERE mf.mediaTitle.id = :titleId AND mf.fileType = :fileType ORDER BY mf.uploadedAt DESC", 
                 MediaFile.class
             );
             query.setParameter("titleId", titleId);
             query.setParameter("fileType", FileType.POSTER);
-            return query.getSingleResult();
-        } catch (NoResultException e) {
+            query.setMaxResults(1); // Solo el más reciente
+            
+            List<MediaFile> results = query.getResultList();
+            return results.isEmpty() ? null : results.get(0);
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Error al obtener poster para título: " + titleId, e);
             return null;
         }
     }

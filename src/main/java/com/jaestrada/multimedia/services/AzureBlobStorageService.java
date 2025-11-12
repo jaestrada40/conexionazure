@@ -47,10 +47,27 @@ public class AzureBlobStorageService {
             
             this.containerClient = blobServiceClient.getBlobContainerClient(containerName);
             
-            // Crear el contenedor si no existe
+            // Crear el contenedor si no existe con acceso público a blobs
             if (!containerClient.exists()) {
                 containerClient.create();
                 LOGGER.info("Contenedor creado: " + containerName);
+            }
+            
+            // Configurar acceso público para que las imágenes sean accesibles
+            try {
+                com.azure.storage.blob.models.PublicAccessType currentAccess = 
+                    containerClient.getProperties().getBlobPublicAccess();
+                
+                if (currentAccess != com.azure.storage.blob.models.PublicAccessType.BLOB) {
+                    containerClient.setAccessPolicy(
+                        com.azure.storage.blob.models.PublicAccessType.BLOB, 
+                        null
+                    );
+                    LOGGER.info("Acceso público configurado para el contenedor: " + containerName);
+                }
+            } catch (Exception e) {
+                LOGGER.warning("No se pudo configurar acceso público automáticamente. " +
+                             "Configúralo manualmente en el portal de Azure: " + e.getMessage());
             }
             
             LOGGER.info("Azure Blob Storage inicializado correctamente");
@@ -67,18 +84,27 @@ public class AzureBlobStorageService {
     public BlobUploadResult uploadFile(String titleName, FileType fileType, byte[] fileContent, 
                                      String contentType, String originalFileName) throws MultimediaException {
         try {
+            LOGGER.info("🔵 Iniciando subida a Azure Blob Storage...");
+            LOGGER.info("🔵 Título: " + titleName + ", Tipo: " + fileType + ", Tamaño: " + fileContent.length + " bytes");
+            
             String blobName = generateBlobName(titleName, fileType, originalFileName);
+            LOGGER.info("🔵 Nombre del blob generado: " + blobName);
+            
             BlobClient blobClient = containerClient.getBlobClient(blobName);
+            LOGGER.info("🔵 BlobClient creado, iniciando upload...");
             
             // Subir el archivo
             blobClient.upload(new ByteArrayInputStream(fileContent), fileContent.length, true);
+            LOGGER.info("🔵 Upload completado, estableciendo headers...");
             
             // Establecer el content type
             blobClient.setHttpHeaders(new com.azure.storage.blob.models.BlobHttpHeaders()
                     .setContentType(contentType));
+            LOGGER.info("🔵 Headers establecidos, obteniendo propiedades...");
             
             // Obtener propiedades del blob
             BlobProperties properties = blobClient.getProperties();
+            LOGGER.info("🔵 Propiedades obtenidas");
             
             BlobUploadResult result = new BlobUploadResult();
             result.setBlobUrl(blobClient.getBlobUrl());
@@ -87,11 +113,12 @@ public class AzureBlobStorageService {
             result.setSizeBytes((long) fileContent.length);
             result.setBlobName(blobName);
             
-            LOGGER.info("Archivo subido exitosamente a Azure Blob: " + blobName);
+            LOGGER.info("✅ Archivo subido exitosamente a Azure Blob: " + blobName);
+            LOGGER.info("✅ URL: " + result.getBlobUrl());
             return result;
             
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error al subir archivo a Azure Blob Storage", e);
+            LOGGER.log(Level.SEVERE, "❌ Error al subir archivo a Azure Blob Storage", e);
             throw new MultimediaException(
                 MultimediaException.Type.STORAGE_ERROR,
                 "Error al subir archivo a Azure Blob Storage: " + e.getMessage(),

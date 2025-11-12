@@ -15,6 +15,7 @@ import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
+import jakarta.servlet.http.Part;
 import org.primefaces.event.FileUploadEvent;
 import org.primefaces.model.file.UploadedFile;
 
@@ -42,8 +43,8 @@ public class MultimediaBean implements Serializable {
     private MovieGenre selectedGenre;
     private List<MovieGenre> selectedGenres;
     
-    // File upload
-    private UploadedFile posterFile;
+    // File upload usando Jakarta Servlet Part
+    private Part uploadedPosterFile;
     private UploadedFile technicalFile;
     
     @PostConstruct
@@ -61,12 +62,12 @@ public class MultimediaBean implements Serializable {
         clearFacesMessages();
         this.selectedTitle = new MediaTitle();
         this.selectedGenres = new ArrayList<>();
-        this.posterFile = null;
+        this.uploadedPosterFile = null;
         this.technicalFile = null;
         this.dialogVisible = true;
     }
     
-    public void save() {
+    public String save() {
         clearFacesMessages();
         
         try {
@@ -83,39 +84,74 @@ public class MultimediaBean implements Serializable {
                                     label + ": " + message, null));
                 }
                 FacesContext.getCurrentInstance().validationFailed();
-                return;
+                return null;
             }
             
             // Asignar géneros seleccionados
             selectedTitle.setGenres(new ArrayList<>(selectedGenres));
             
-            // Guardar título
+            // Guardar título primero
             multimediaService.saveMediaTitle(selectedTitle);
+            LOGGER.info("Título guardado con ID: " + selectedTitle.getId());
+            
+            // Debug: verificar estado del archivo
+            LOGGER.info("🔍 uploadedPosterFile es null? " + (uploadedPosterFile == null));
+            if (uploadedPosterFile != null) {
+                LOGGER.info("🔍 uploadedPosterFile.getSize(): " + uploadedPosterFile.getSize());
+                LOGGER.info("🔍 uploadedPosterFile.getSubmittedFileName(): " + uploadedPosterFile.getSubmittedFileName());
+            }
             
             // Subir archivos si están presentes
-            if (posterFile != null && posterFile.getSize() > 0) {
-                handlePosterUpload();
+            boolean fileUploaded = false;
+            try {
+                if (uploadedPosterFile != null && uploadedPosterFile.getSize() > 0) {
+                    LOGGER.info("Subiendo poster de tamaño: " + uploadedPosterFile.getSize() + " bytes");
+                    
+                    // Convertir Part a UploadedFile
+                    UploadedFile posterFile = new PartUploadedFile(uploadedPosterFile);
+                    
+                    multimediaService.uploadFile(selectedTitle, posterFile, FileType.POSTER, getCurrentUser());
+                    fileUploaded = true;
+                    LOGGER.info("Poster subido exitosamente");
+                }
+                
+                if (technicalFile != null && technicalFile.getSize() > 0) {
+                    LOGGER.info("Subiendo ficha técnica de tamaño: " + technicalFile.getSize() + " bytes");
+                    multimediaService.uploadFile(selectedTitle, technicalFile, FileType.TECHNICAL_SHEET, getCurrentUser());
+                    fileUploaded = true;
+                    LOGGER.info("Ficha técnica subida exitosamente");
+                }
+            } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, "Error al subir archivos", e);
+                addErrorMessage("Título guardado pero error al subir imagen: " + e.getMessage());
+                this.dialogVisible = false;
+                return null;
             }
             
-            if (technicalFile != null && technicalFile.getSize() > 0) {
-                handleTechnicalUpload();
-            }
-            
+            // Cerrar diálogo y limpiar
             this.dialogVisible = false;
-            addInfoMessage("Título multimedia guardado exitosamente");
-            
-            // Reset form
             this.selectedTitle = new MediaTitle();
             this.selectedGenres = new ArrayList<>();
-            this.posterFile = null;
+            this.uploadedPosterFile = null;
             this.technicalFile = null;
+            
+            // Mensaje único
+            if (fileUploaded) {
+                addInfoMessage("Título guardado con imagen");
+            } else {
+                addInfoMessage("Título guardado");
+            }
+            
+            return null;
             
         } catch (MultimediaException e) {
             addErrorMessage("Error al guardar: " + e.getMessage());
             LOGGER.log(Level.WARNING, "Error al guardar título multimedia", e);
+            return null;
         } catch (Exception e) {
             addErrorMessage("Error inesperado al guardar el título");
             LOGGER.log(Level.SEVERE, "Error inesperado al guardar título multimedia", e);
+            return null;
         }
     }
     
@@ -123,7 +159,7 @@ public class MultimediaBean implements Serializable {
         clearFacesMessages();
         this.selectedTitle = title;
         this.selectedGenres = new ArrayList<>(title.getGenres());
-        this.posterFile = null;
+        this.uploadedPosterFile = null;
         this.technicalFile = null;
         this.dialogVisible = true;
     }
@@ -204,19 +240,6 @@ public class MultimediaBean implements Serializable {
     
     // ==================== File Upload Handling ====================
     
-    public void handlePosterUpload() {
-        if (posterFile != null && posterFile.getSize() > 0 && selectedTitle.getId() != null) {
-            try {
-                multimediaService.uploadFile(selectedTitle, posterFile, FileType.POSTER, getCurrentUser());
-                addInfoMessage("Poster subido exitosamente");
-                posterFile = null;
-            } catch (MultimediaException e) {
-                addErrorMessage("Error al subir poster: " + e.getMessage());
-                LOGGER.log(Level.WARNING, "Error al subir poster", e);
-            }
-        }
-    }
-    
     public void handleTechnicalUpload() {
         if (technicalFile != null && technicalFile.getSize() > 0 && selectedTitle.getId() != null) {
             try {
@@ -230,35 +253,7 @@ public class MultimediaBean implements Serializable {
         }
     }
     
-    public void onPosterUpload(FileUploadEvent event) {
-        try {
-            if (selectedTitle.getId() != null) {
-                multimediaService.uploadFile(selectedTitle, event.getFile(), FileType.POSTER, getCurrentUser());
-                addInfoMessage("Poster subido exitosamente: " + event.getFile().getFileName());
-            } else {
-                this.posterFile = event.getFile();
-                addInfoMessage("Poster seleccionado: " + event.getFile().getFileName() + ". Se subirá al guardar el título.");
-            }
-        } catch (MultimediaException e) {
-            addErrorMessage("Error al subir poster: " + e.getMessage());
-            LOGGER.log(Level.WARNING, "Error al subir poster", e);
-        }
-    }
-    
-    public void onTechnicalUpload(FileUploadEvent event) {
-        try {
-            if (selectedTitle.getId() != null) {
-                multimediaService.uploadFile(selectedTitle, event.getFile(), FileType.TECHNICAL_SHEET, getCurrentUser());
-                addInfoMessage("Ficha técnica subida exitosamente: " + event.getFile().getFileName());
-            } else {
-                this.technicalFile = event.getFile();
-                addInfoMessage("Ficha técnica seleccionada: " + event.getFile().getFileName() + ". Se subirá al guardar el título.");
-            }
-        } catch (MultimediaException e) {
-            addErrorMessage("Error al subir ficha técnica: " + e.getMessage());
-            LOGGER.log(Level.WARNING, "Error al subir ficha técnica", e);
-        }
-    }
+
     
     public void deleteFile(MediaFile file) {
         try {
@@ -321,6 +316,106 @@ public class MultimediaBean implements Serializable {
         }
     }
     
+    // ==================== Test Methods ====================
+    
+    public String testAzure() {
+        try {
+            LOGGER.info("=== INICIANDO PRUEBA DE AZURE DESDE BEAN ===");
+            
+            // Crear un título de prueba
+            MediaTitle testTitle = new MediaTitle();
+            testTitle.setTitleName("PRUEBA AZURE " + System.currentTimeMillis());
+            testTitle.setTitleType(TitleType.MOVIE);
+            testTitle.setReleaseYear(2024);
+            
+            // Asignar un género existente
+            List<MovieGenre> genres = multimediaService.getAllGenres();
+            if (!genres.isEmpty()) {
+                testTitle.setGenres(List.of(genres.get(0)));
+            } else {
+                addErrorMessage("No hay géneros disponibles. Crea uno primero.");
+                return null;
+            }
+            
+            // Guardar el título
+            multimediaService.saveMediaTitle(testTitle);
+            LOGGER.info("Título de prueba creado con ID: " + testTitle.getId());
+            
+            // Crear una imagen PNG ficticia (1x1 pixel transparente)
+            byte[] testData = new byte[] {
+                (byte)0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+                0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+                0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+                0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, (byte)0xC4,
+                (byte)0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41, 0x54,
+                0x78, (byte)0x9C, 0x63, 0x00, 0x01, 0x00, 0x00, 0x05,
+                0x00, 0x01, 0x0D, 0x0A, 0x2D, (byte)0xB4, 0x00, 0x00,
+                0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, (byte)0xAE, 0x42,
+                0x60, (byte)0x82
+            };
+            
+            TestUploadedFile testFile = new TestUploadedFile(
+                "test-azure-" + System.currentTimeMillis() + ".png",
+                "image/png",
+                testData
+            );
+            
+            // Intentar subir el archivo a Azure
+            LOGGER.info("Intentando subir archivo a Azure...");
+            MediaFile result = multimediaService.uploadFile(testTitle, testFile, FileType.POSTER, "sistema-test");
+            
+            if (result != null && result.getBlobUrl() != null) {
+                LOGGER.info("✅ AZURE BLOB STORAGE FUNCIONANDO CORRECTAMENTE");
+                LOGGER.info("✅ Archivo subido a: " + result.getBlobUrl());
+                addInfoMessage("✅ Azure funciona! Archivo subido a: " + result.getBlobUrl());
+            } else {
+                LOGGER.severe("❌ ERROR: No se pudo subir el archivo a Azure");
+                addErrorMessage("❌ Error: No se pudo subir el archivo a Azure");
+            }
+            
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "❌ ERROR EN PRUEBA DE AZURE", e);
+            addErrorMessage("❌ Error en prueba de Azure: " + e.getMessage());
+        }
+        return null;
+    }
+    
+    // Clase interna para simular un archivo subido
+    private static class TestUploadedFile implements UploadedFile {
+        private final String fileName;
+        private final String contentType;
+        private final byte[] content;
+        
+        public TestUploadedFile(String fileName, String contentType, byte[] content) {
+            this.fileName = fileName;
+            this.contentType = contentType;
+            this.content = content;
+        }
+        
+        @Override
+        public String getFileName() { return fileName; }
+        
+        @Override
+        public java.io.InputStream getInputStream() throws java.io.IOException {
+            return new java.io.ByteArrayInputStream(content);
+        }
+        
+        @Override
+        public long getSize() { return content.length; }
+        
+        @Override
+        public byte[] getContent() { return content; }
+        
+        @Override
+        public String getContentType() { return contentType; }
+        
+        @Override
+        public void write(String filePath) throws Exception {}
+        
+        @Override
+        public void delete() {}
+    }
+    
     // ==================== Utility Methods ====================
     
     private void clearFacesMessages() {
@@ -333,12 +428,14 @@ public class MultimediaBean implements Serializable {
     }
     
     private void addInfoMessage(String message) {
-        FacesContext.getCurrentInstance().addMessage(null,
+        // Agregar mensaje solo al componente de mensajes principal
+        FacesContext.getCurrentInstance().addMessage("frmMain:messages",
                 new FacesMessage(FacesMessage.SEVERITY_INFO, message, null));
     }
     
     private void addErrorMessage(String message) {
-        FacesContext.getCurrentInstance().addMessage(null,
+        // Agregar mensaje solo al componente de mensajes principal
+        FacesContext.getCurrentInstance().addMessage("frmMain:messages",
                 new FacesMessage(FacesMessage.SEVERITY_ERROR, message, null));
     }
     
@@ -406,12 +503,12 @@ public class MultimediaBean implements Serializable {
         this.selectedGenres = selectedGenres;
     }
     
-    public UploadedFile getPosterFile() {
-        return posterFile;
+    public Part getUploadedPosterFile() {
+        return uploadedPosterFile;
     }
     
-    public void setPosterFile(UploadedFile posterFile) {
-        this.posterFile = posterFile;
+    public void setUploadedPosterFile(Part uploadedPosterFile) {
+        this.uploadedPosterFile = uploadedPosterFile;
     }
     
     public UploadedFile getTechnicalFile() {
@@ -420,5 +517,61 @@ public class MultimediaBean implements Serializable {
     
     public void setTechnicalFile(UploadedFile technicalFile) {
         this.technicalFile = technicalFile;
+    }
+    
+    // ==================== Inner Classes ====================
+    
+    /**
+     * Clase para convertir Jakarta Servlet Part a PrimeFaces UploadedFile
+     */
+    private static class PartUploadedFile implements UploadedFile {
+        private final Part part;
+        
+        public PartUploadedFile(Part part) {
+            this.part = part;
+        }
+        
+        @Override
+        public String getFileName() {
+            return part.getSubmittedFileName();
+        }
+        
+        @Override
+        public java.io.InputStream getInputStream() throws java.io.IOException {
+            return part.getInputStream();
+        }
+        
+        @Override
+        public long getSize() {
+            return part.getSize();
+        }
+        
+        @Override
+        public byte[] getContent() {
+            try {
+                return part.getInputStream().readAllBytes();
+            } catch (java.io.IOException e) {
+                throw new RuntimeException("Error al leer contenido del archivo", e);
+            }
+        }
+        
+        @Override
+        public String getContentType() {
+            return part.getContentType();
+        }
+        
+        @Override
+        public void write(String filePath) throws Exception {
+            part.write(filePath);
+        }
+        
+        @Override
+        public void delete() {
+            try {
+                part.delete();
+            } catch (java.io.IOException e) {
+                // Ignorar
+            }
+        }
     }
 }
