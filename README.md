@@ -31,4 +31,3 @@ O desde pgAdmin/DBeaver, ejecutar el contenido del archivo `basededatos.sql`
 ```bash
 cp src/main/resources/config/.env.example src/main/resources/config/.env
 ```
-
